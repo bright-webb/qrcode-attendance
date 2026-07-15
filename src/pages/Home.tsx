@@ -14,7 +14,7 @@ export const Home = () => {
 
   const fetchToken = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/qr-token`);
+      const res = await fetch(`${API_URL}/api/qr-token?t=${Date.now()}`, { cache: "no-store" });
       const data = await res.json();
       if (data.token) {
         setQrToken(data.token);

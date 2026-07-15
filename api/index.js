@@ -107,6 +107,7 @@ async function handleClock(req, res, isClockOut) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "default_super_secret");
     if (decoded.purpose !== "qr") throw new Error("Invalid token purpose");
   } catch (err) {
+    console.error("JWT Verification failed:", err.message, "| Token:", token);
     return res.status(403).json({ error: "Invalid or expired QR code. Please scan the screen again." });
   }
 
