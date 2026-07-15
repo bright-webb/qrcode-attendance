@@ -5,13 +5,10 @@ import path from "path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Remove filesystem dependencies since Vercel Serverless does not support reading local keys securely
 
-// Authenticate with Google using Vercel Environment Variables
 const auth = new google.auth.GoogleAuth({
   credentials: {
     client_email: process.env.GOOGLE_CLIENT_EMAIL,
-    // Vercel sometimes escapes newlines, so we replace the literal \n string back to true newlines
     private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
   },
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
@@ -19,11 +16,7 @@ const auth = new google.auth.GoogleAuth({
 
 const sheets = google.sheets({ version: "v4", auth });
 
-/**
- * Get today's column label matching the sheet format:
- *   Clock in:  "15/07/26 (clock in)"
- *   Clock out: "15/07/26 (clock out)"
- */
+
 export function getTodayColumnLabel(isClockOut = false) {
   const now = new Date();
   const dd = String(now.getDate()).padStart(2, "0");
@@ -100,7 +93,6 @@ async function appendHeader(spreadsheetId, sheetName, headers, newHeader) {
     requestBody: { values: [[newHeader]] },
   });
 
-  // Step 3: Add Present / Absent dropdown validation for data rows (row 2–1000)
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
     requestBody: {
@@ -109,7 +101,7 @@ async function appendHeader(spreadsheetId, sheetName, headers, newHeader) {
           setDataValidation: {
             range: {
               sheetId,
-              startRowIndex: 1,         // 0-indexed → row 2
+              startRowIndex: 1,       
               endRowIndex: 1000,
               startColumnIndex: newColIndex,
               endColumnIndex: newColIndex + 1,
@@ -122,8 +114,8 @@ async function appendHeader(spreadsheetId, sheetName, headers, newHeader) {
                   { userEnteredValue: "Absent" },
                 ],
               },
-              showCustomUi: true,   // shows the dropdown arrow
-              strict: false,        // allows typing as well
+              showCustomUi: true,  
+              strict: false,     
             },
           },
         },
@@ -134,9 +126,7 @@ async function appendHeader(spreadsheetId, sheetName, headers, newHeader) {
   return newColIndex;
 }
 
-/**
- * Convert 0-based column index to letter(s): 0→A, 25→Z, 26→AA, etc.
- */
+
 function columnIndexToLetter(index) {
   let letter = "";
   let n = index;
@@ -147,12 +137,7 @@ function columnIndexToLetter(index) {
   return letter;
 }
 
-/**
- * Find a student row by Gitea username.
- * Dynamically discovers the "Gitea Username", "First Name", and "Last Name"
- * column positions from the header row.
- * Returns { rowIndex (1-based), firstName, lastName } or null if not found.
- */
+
 async function findStudentRow(spreadsheetId, sheetName, username) {
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
@@ -162,7 +147,6 @@ async function findStudentRow(spreadsheetId, sheetName, username) {
   const rows = res.data.values ?? [];
   if (rows.length === 0) return null;
 
-  // Header row — normalise to lowercase for case-insensitive matching
   const headers = rows[0].map((h) => h.trim().toLowerCase());
 
   const giteaCol     = headers.findIndex((h) => h === "gitea username");
@@ -190,31 +174,26 @@ async function findStudentRow(spreadsheetId, sheetName, username) {
   return null;
 }
 
-/**
- * Mark a student as Present in today's clock-in or clock-out column.
- * Creates the column (with dropdown validation) if it doesn't exist yet.
- */
+
 export async function markAttendance(spreadsheetId, sheetName, username, isClockOut) {
   const columnLabel = getTodayColumnLabel(isClockOut);
 
-  // 1. Find the student by Gitea username
+
   const student = await findStudentRow(spreadsheetId, sheetName, username);
   if (!student) {
     throw new Error(`Username "${username}" not found in the sheet.`);
   }
 
-  // 2. Find or create today's date column
+
   let headers = await getHeaders(spreadsheetId, sheetName);
   let colIndex = headers.findIndex(
     (h) => h.trim().toLowerCase() === columnLabel.toLowerCase()
   );
 
   if (colIndex === -1) {
-    // Column doesn't exist yet — insert it with dropdown validation
     colIndex = await appendHeader(spreadsheetId, sheetName, headers, columnLabel);
   }
 
-  // 3. Write "Present" into the student's cell
   const colLetter = columnIndexToLetter(colIndex);
   const cellRange = `${sheetName}!${colLetter}${student.rowIndex}`;
 

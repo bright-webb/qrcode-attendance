@@ -9,7 +9,6 @@ export const Home = () => {
   const [time, setTime] = React.useState(new Date().toLocaleTimeString());
   const [qrToken, setQrToken] = React.useState("");
 
-  // Fetch a new token from the server for the QR code
   const fetchToken = async () => {
     try {
       const res = await fetch(`${API_URL}/api/qr-token`);
@@ -27,9 +26,8 @@ export const Home = () => {
     fetchToken();
 
     // Fetch new token every 15 seconds
-    const tokenInterval = setInterval(fetchToken, 15000);
+    const tokenInterval = setInterval(fetchToken, 30000);
     
-    // Update time every second
     const timeInterval = setInterval(() => {
       setTime(new Date().toLocaleTimeString());
     }, 1000);
