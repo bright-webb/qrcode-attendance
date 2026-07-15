@@ -16,9 +16,8 @@ const MAX_DISTANCE_METERS = parseInt(process.env.MAX_DISTANCE_METERS || "50", 10
 app.use(cors());
 app.use(express.json());
 
-connectMongo(process.env.MONGODB_URI).catch((err) => {
-  console.error("MongoDB connection failed:", err.message);
-});
+// MongoDB will be connected inside the route handlers instead of globally on startup
+// to properly support Vercel Serverless Architecture.
 
 /**
  * GET /api/qr-token
@@ -33,9 +32,17 @@ app.get("/api/qr-token", (_req, res) => {
  * POST /api/admin/login
  * Body: { username, password }
  */
-app.post("/api/admin/login", (req, res) => {
+app.post("/api/admin/login", async (req, res) => {
   const { username, password } = req.body;
-  const { ADMIN_USERNAME, ADMIN_PASSWORD } = process.env;
+  const { MONGODB_URI, ADMIN_USERNAME, ADMIN_PASSWORD } = process.env;
+
+  // 1. Ensure DB connection is ready for this specific request
+  try {
+    await connectMongo(MONGODB_URI);
+  } catch (err) {
+    console.error("MongoDB Connection Error:", err);
+    return res.status(500).json({ error: "Database connection failed. Please try again." });
+  }
 
   if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
     const token = jwt.sign({ role: "admin" }, process.env.JWT_SECRET || "default_super_secret", { expiresIn: "8h" });
@@ -82,6 +89,13 @@ function getDistanceInMeters(lat1, lon1, lat2, lon2) {
 async function handleClock(req, res, isClockOut) {
   const { username, token, lat, lng, deviceId } = req.body;
   const action = isClockOut ? "clock-out" : "clock-in";
+
+  try {
+    await connectMongo(process.env.MONGODB_URI);
+  } catch (err) {
+    console.error("MongoDB Connection Error:", err);
+    return res.status(500).json({ error: "Database connection failed. Please try again." });
+  }
 
   // 1. Basic Validation
   if (!username || typeof username !== "string" || !username.trim()) {

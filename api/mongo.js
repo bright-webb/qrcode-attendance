@@ -16,13 +16,33 @@ const attendanceLogSchema = new mongoose.Schema({
 
 const AttendanceLog = mongoose.model("AttendanceLog", attendanceLogSchema);
 
-let isConnected = false;
+
+if (!cached) {
+  cached = global.mongoose = { conn: null, promise: null };
+}
 
 export async function connectMongo(uri) {
-  if (isConnected) return;
-  await mongoose.connect(uri);
-  isConnected = true;
-  console.log("✅ MongoDB connected");
+  if (cached.conn) {
+    return cached.conn;
+  }
+
+  if (!cached.promise) {
+    cached.promise = mongoose.connect(uri, {
+      bufferCommands: false, 
+    }).then((mongoose) => {
+      console.log("✅ MongoDB connected successfully in Serverless");
+      return mongoose;
+    });
+  }
+  
+  try {
+    cached.conn = await cached.promise;
+  } catch (e) {
+    cached.promise = null;
+    throw e;
+  }
+  
+  return cached.conn;
 }
 
 export async function saveLog(data) {
