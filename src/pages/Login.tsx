@@ -130,6 +130,37 @@ export const Login = () => {
           </div>
           <h1 className="login-title">Fellowship Attendance</h1>
           <p className="login-subtitle">Enter your Gitea username to mark your attendance</p>
+           <form onSubmit={handleSubmit} className="login-form">
+            <div className="form-group">
+              <label htmlFor="username">Gitea Username</label>
+              <input
+                type="text"
+                id="username"
+                name="username"
+                value={username}
+                placeholder="e.g. johndoe"
+                autoComplete="off"
+                autoFocus
+                onChange={(e) => setUsername(e.target.value)}
+                disabled={state === "loading"}
+              />
+            </div>
+            <button
+              type="submit"
+              id="clock-btn"
+              disabled={!username.trim() || state === "loading"}
+              className={state === "loading" ? "btn-loading" : ""}
+            >
+              {state === "loading" ? (
+                <>
+                  <span className="spinner" />
+                  {isClockOut ? "Clocking Out…" : "Clocking In…"}
+                </>
+              ) : (
+                actionLabel
+              )}
+            </button>
+          </form>
         </div>
 
         {/* Success State */}
