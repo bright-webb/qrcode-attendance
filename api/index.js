@@ -9,22 +9,85 @@ import { connectMongo, saveLog, checkBuddyPunching } from "./mongo.js";
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-const CAMPUS_LAT = parseFloat(process.env.CAMPUS_LAT || "0");
-const CAMPUS_LNG = parseFloat(process.env.CAMPUS_LNG || "0");
-const MAX_DISTANCE_METERS = parseInt(process.env.MAX_DISTANCE_METERS || "50", 10);
-
 app.use(cors());
 app.use(express.json());
 
-// MongoDB will be connected inside the route handlers instead of globally on startup
-// to properly support Vercel Serverless Architecture.
+// ─── Helpers ───────────────────────────────────────────────────────────────
+
+function getSecret() {
+  return process.env.JWT_SECRET || "fallback_hmac_secret_change_me";
+}
+
+/**
+ * Generate a tamper-proof, URL-safe QR token using HMAC-SHA256.
+ * Format: "<timestamp>.<hex_signature>"
+ * No external JWT library required for generation — fully stateless.
+ */
+function generateQRToken() {
+  const timestamp = Date.now().toString();
+  const sig = crypto
+    .createHmac("sha256", getSecret())
+    .update(timestamp)
+    .digest("hex")
+    .slice(0, 24);
+  return `${timestamp}.${sig}`;
+}
+
+/**
+ * Verify an HMAC QR token. Returns true if valid and not expired.
+ */
+function verifyQRToken(token) {
+  if (!token || typeof token !== "string") return false;
+  const parts = token.split(".");
+  if (parts.length !== 2) return false;
+
+  const [timestamp, sig] = parts;
+  const age = Date.now() - parseInt(timestamp, 10);
+
+  // Reject if expired (65 seconds) or from the future
+  if (isNaN(age) || age > 65000 || age < 0) return false;
+
+  const expectedSig = crypto
+    .createHmac("sha256", getSecret())
+    .update(timestamp)
+    .digest("hex")
+    .slice(0, 24);
+
+  // Constant-time comparison to prevent timing attacks
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(sig, "hex"),
+      Buffer.from(expectedSig, "hex")
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Haversine formula — distance between two GPS points in metres.
+ */
+function getDistanceInMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371e3;
+  const φ1 = (lat1 * Math.PI) / 180;
+  const φ2 = (lat2 * Math.PI) / 180;
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(Δφ / 2) ** 2 +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// ─── Routes ────────────────────────────────────────────────────────────────
 
 /**
  * GET /api/qr-token
- * Generates a stateless, short-lived JWT for the QR code.
+ * Returns a fresh HMAC-signed QR token valid for 65 seconds.
  */
 app.get("/api/qr-token", (_req, res) => {
-  const token = jwt.sign({ purpose: "qr" }, process.env.JWT_SECRET || "default_super_secret", { expiresIn: "65s" });
+  res.setHeader("Cache-Control", "no-store");
+  const token = generateQRToken();
   res.json({ token });
 });
 
@@ -36,25 +99,23 @@ app.post("/api/admin/login", async (req, res) => {
   const { username, password } = req.body;
   const { MONGODB_URI, ADMIN_USERNAME, ADMIN_PASSWORD } = process.env;
 
-  // 1. Ensure DB connection is ready for this specific request
   try {
     await connectMongo(MONGODB_URI);
   } catch (err) {
-    console.error("MongoDB Connection Error:", err);
-    return res.status(500).json({ error: "Database connection failed. Please try again." });
+    console.error("MongoDB Error:", err.message);
+    return res.status(500).json({ error: "Database connection failed." });
   }
 
   if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-    const token = jwt.sign({ role: "admin" }, process.env.JWT_SECRET || "default_super_secret", { expiresIn: "8h" });
+    const token = jwt.sign({ role: "admin" }, getSecret(), { expiresIn: "8h" });
     return res.json({ success: true, token });
   }
 
-  return res.status(401).json({ error: "Invalid admin credentials" });
+  return res.status(401).json({ error: "Invalid admin credentials." });
 });
 
 /**
  * POST /api/clock-in
- * Body: { username, token, lat, lng, deviceId }
  */
 app.post("/api/clock-in", async (req, res) => {
   await handleClock(req, res, false);
@@ -62,70 +123,54 @@ app.post("/api/clock-in", async (req, res) => {
 
 /**
  * POST /api/clock-out
- * Body: { username, token, lat, lng, deviceId }
  */
 app.post("/api/clock-out", async (req, res) => {
   await handleClock(req, res, true);
 });
 
-/**
- * Haversine formula to calculate distance between two lat/lng coordinates in meters
- */
-function getDistanceInMeters(lat1, lon1, lat2, lon2) {
-  const R = 6371e3; // Earth radius in meters
-  const φ1 = (lat1 * Math.PI) / 180;
-  const φ2 = (lat2 * Math.PI) / 180;
-  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-
-  const a =
-    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return R * c;
-}
+// ─── Core Handler ──────────────────────────────────────────────────────────
 
 async function handleClock(req, res, isClockOut) {
   const { username, token, lat, lng, deviceId } = req.body;
   const action = isClockOut ? "clock-out" : "clock-in";
 
+  // 1. Connect to DB first — fail fast with a clear message
   try {
     await connectMongo(process.env.MONGODB_URI);
   } catch (err) {
-    console.error("MongoDB Connection Error:", err);
-    return res.status(500).json({ error: "Database connection failed. Please try again." });
+    console.error("MongoDB connection failed:", err.message);
+    return res.status(500).json({ error: "Database is unavailable. Please try again in a moment." });
   }
 
-  // 1. Basic Validation
+  // 2. Basic input validation
   if (!username || typeof username !== "string" || !username.trim()) {
     return res.status(400).json({ error: "Username is required." });
   }
 
-  // 2. Token Validation (Temporarily Bypassed as requested)
-  /*
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "default_super_secret");
-    if (decoded.purpose !== "qr") throw new Error("Invalid token purpose");
-  } catch (err) {
-    console.error("JWT Verification failed:", err.message, "| Token:", token);
-    return res.status(403).json({ error: "Invalid or expired QR code. Please scan the screen again." });
+  // 3. QR Token Validation (HMAC-based, stateless, serverless-safe)
+  if (!verifyQRToken(token)) {
+    console.warn("Invalid QR token attempt:", token);
+    return res.status(403).json({ error: "QR code has expired. Please scan the screen again." });
   }
-  */
 
-  // 3. Geolocation Validation
-  if (CAMPUS_LAT !== 0 && CAMPUS_LNG !== 0) {
+  // 4. Geolocation Validation
+  const campusLat = parseFloat(process.env.CAMPUS_LAT || "0");
+  const campusLng = parseFloat(process.env.CAMPUS_LNG || "0");
+  const maxDistance = parseInt(process.env.MAX_DISTANCE_METERS || "50", 10);
+
+  if (campusLat !== 0 && campusLng !== 0) {
     if (!lat || !lng) {
       return res.status(403).json({ error: "Location access is required to clock in." });
     }
-    const distance = getDistanceInMeters(lat, lng, CAMPUS_LAT, CAMPUS_LNG);
-    if (distance > MAX_DISTANCE_METERS) {
-      return res.status(403).json({ 
-        error: `You must be on campus to clock in. You are ${Math.round(distance)} meters away. (Max allowed: ${MAX_DISTANCE_METERS}m)` 
+    const distance = getDistanceInMeters(lat, lng, campusLat, campusLng);
+    if (distance > maxDistance) {
+      return res.status(403).json({
+        error: `You must be on campus to clock in. You are ${Math.round(distance)}m away (max: ${maxDistance}m).`,
       });
     }
   }
 
+  // Build date labels
   const today = new Date();
   const dd = String(today.getDate()).padStart(2, "0");
   const mm = String(today.getMonth() + 1).padStart(2, "0");
@@ -133,17 +178,18 @@ async function handleClock(req, res, isClockOut) {
   const dateLabel = `${dd}/${mm}/${yy}`;
   const columnLabel = getTodayColumnLabel(isClockOut);
 
-  // 4. Buddy Punching Validation
+  // 5. Buddy-Punching Check
   try {
-    const isBuddyPunching = await checkBuddyPunching(deviceId, username.trim(), dateLabel);
-    if (isBuddyPunching) {
-      return res.status(403).json({ error: "This device has already been used to clock in someone else today." });
+    const isBuddy = await checkBuddyPunching(deviceId, username.trim(), dateLabel);
+    if (isBuddy) {
+      return res.status(403).json({ error: "This device has already been used by someone else today." });
     }
   } catch (err) {
-    console.error("Buddy punching check failed:", err);
+    console.error("Buddy punching check error:", err.message);
+    // Non-fatal — continue
   }
 
-  // 5. Execute Attendance Update
+  // 6. Mark Attendance in Google Sheets + save log
   try {
     const result = await markAttendance(
       process.env.SPREADSHEET_ID,
@@ -152,7 +198,6 @@ async function handleClock(req, res, isClockOut) {
       isClockOut
     );
 
-    // Save log to MongoDB
     await saveLog({
       username: username.trim(),
       firstName: result.firstName,
@@ -178,7 +223,7 @@ async function handleClock(req, res, isClockOut) {
   } catch (err) {
     console.error(`${action} error for "${username}":`, err.message);
 
-    // Still log the failed attempt
+    // Log the failure — don't let a log failure mask the real error
     await saveLog({
       username: username.trim(),
       action,
@@ -189,14 +234,16 @@ async function handleClock(req, res, isClockOut) {
       errorMessage: err.message,
     }).catch(() => {});
 
-    const isNotFound = err.message.includes("not found");
+    const isNotFound = err.message.toLowerCase().includes("not found");
     return res.status(isNotFound ? 404 : 500).json({
       error: isNotFound
-        ? `Username "${username}" was not found. Please check and try again.\n Error: ${err.message}`
-        : `Something went wrong. Please try again. \nError: ${err.message}`,
+        ? `Username "${username.trim()}" was not found in the sheet. Please check and try again.`
+        : `Something went wrong. Please try again.\nDetails: ${err.message}`,
     });
   }
 }
+
+// ─── Server ────────────────────────────────────────────────────────────────
 
 if (process.env.NODE_ENV !== "production") {
   app.listen(PORT, () => {
@@ -204,5 +251,5 @@ if (process.env.NODE_ENV !== "production") {
   });
 }
 
-// Export the Express API so Vercel can run it as Serverless Functions
+// Export for Vercel Serverless
 export default app;

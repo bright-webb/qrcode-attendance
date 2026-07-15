@@ -4,12 +4,12 @@ import "../App.css";
 
 type ClockState = "idle" | "loading" | "success" | "error";
 
-const isClockOut = new Date().getHours() >= 12;
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3001" : "");
 
 function generateUUID() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
 }
@@ -30,31 +30,28 @@ export const Login = () => {
   const [message, setMessage] = useState("");
   const [studentName, setStudentName] = useState("");
 
+  const token = searchParams.get("token");
+  const isClockOut = new Date().getHours() >= 17;
   const actionLabel = isClockOut ? "Clock Out" : "Clock In";
   const endpoint = isClockOut ? "/api/clock-out" : "/api/clock-in";
-  
 
-  const token = searchParams.get("token");
-
+  // If there's no token in the URL, show an error immediately
   useEffect(() => {
-    // Frontend token check temporarily bypassed
-    /*
     if (!token) {
       setState("error");
-      setMessage("Invalid QR Code. Please scan the QR code on the screen again.");
+      setMessage("Invalid QR Code. Please go back and scan the QR code on the screen.");
     }
-    */
   }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim()) return;
+    if (!username.trim() || !token) return;
 
     setState("loading");
     setMessage("");
     setStudentName("");
 
-    // 1. Get Geolocation
+    // Geolocation
     if (!navigator.geolocation) {
       setState("error");
       setMessage("Geolocation is not supported by your browser.");
@@ -66,17 +63,16 @@ export const Login = () => {
         const { latitude, longitude } = position.coords;
         const deviceId = getDeviceId();
 
-        // 2. Send Request
         try {
           const res = await fetch(`${API_URL}${endpoint}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
               username: username.trim(),
               token,
               lat: latitude,
               lng: longitude,
-              deviceId
+              deviceId,
             }),
           });
 
@@ -88,37 +84,36 @@ export const Login = () => {
             return;
           }
 
-          const name = [data.firstName, data.lastName].filter(Boolean).join(" ") || data.username;
+          const name =
+            [data.firstName, data.lastName].filter(Boolean).join(" ") ||
+            data.username;
           setStudentName(name);
           setState("success");
           setMessage(`Successfully ${isClockOut ? "clocked out" : "clocked in"}!`);
           setUsername("");
-
-          setTimeout(() => {
-            setState("error");
-            setMessage("Session ended. Please scan the QR code on the screen again.");
-          }, 5000);
         } catch {
           setState("error");
-          setMessage("Could not reach the server. Please check your connection.");
+          setMessage(
+            "Could not reach the server. Please check your internet connection and try again."
+          );
         }
       },
       () => {
         setState("error");
-        setMessage("You must allow location access to clock in. Please enable it in your browser settings and try again.");
+        setMessage(
+          "Location access was denied. Please enable Location in your browser settings and try again."
+        );
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
   };
 
   const handleReset = () => {
-    if (!token) return;
     setState("idle");
     setMessage("");
     setStudentName("");
     setUsername("");
   };
-
 
   return (
     <div className="Login">
@@ -130,64 +125,9 @@ export const Login = () => {
           </div>
           <h1 className="login-title">Fellowship Attendance</h1>
           <p className="login-subtitle">Enter your Gitea username to mark your attendance</p>
-           <form onSubmit={handleSubmit} className="login-form">
-            <div className="form-group">
-              <label htmlFor="username">Gitea Username</label>
-              <input
-                type="text"
-                id="username"
-                name="username"
-                value={username}
-                placeholder="e.g. johndoe"
-                autoComplete="off"
-                autoFocus
-                onChange={(e) => setUsername(e.target.value)}
-                disabled={state === "loading"}
-              />
-            </div>
-            <button
-              type="submit"
-              id="clock-btn"
-              disabled={!username.trim() || state === "loading"}
-              className={state === "loading" ? "btn-loading" : ""}
-            >
-              {state === "loading" ? (
-                <>
-                  <span className="spinner" />
-                  {isClockOut ? "Clocking Out…" : "Clocking In…"}
-                </>
-              ) : (
-                actionLabel
-              )}
-            </button>
-          </form>
         </div>
 
-        {/* Success State */}
-        {state === "success" && (
-          <div className="feedback-card feedback-success">
-            <div className="feedback-icon">✅</div>
-            <div className="feedback-name">{studentName}</div>
-            <div className="feedback-message">{message}</div>
-            <div className="feedback-time">{new Date().toLocaleTimeString()}</div>
-            {/* Removed the Next Person button to force them to scan a fresh QR code */}
-          </div>
-        )}
-
-        {/* Error State */}
-        {state === "error" && (
-          <div className="feedback-card feedback-error">
-            <div className="feedback-icon">❌</div>
-            <div className="feedback-message" style={{ whiteSpace: "pre-line" }}>{message}</div>
-            {token && (
-              <button className="btn-reset" onClick={handleReset}>
-                Try Again
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Form */}
+        {/* Idle / Loading — main form */}
         {(state === "idle" || state === "loading") && token && (
           <form onSubmit={handleSubmit} className="login-form">
             <div className="form-group">
@@ -220,6 +160,31 @@ export const Login = () => {
               )}
             </button>
           </form>
+        )}
+
+        {/* Success State */}
+        {state === "success" && (
+          <div className="feedback-card feedback-success">
+            <div className="feedback-icon">✅</div>
+            <div className="feedback-name">{studentName}</div>
+            <div className="feedback-message">{message}</div>
+            <div className="feedback-time">{new Date().toLocaleTimeString()}</div>
+          </div>
+        )}
+
+        {/* Error State */}
+        {state === "error" && (
+          <div className="feedback-card feedback-error">
+            <div className="feedback-icon">❌</div>
+            <div className="feedback-message" style={{ whiteSpace: "pre-line" }}>
+              {message}
+            </div>
+            {token && (
+              <button className="btn-reset" onClick={handleReset}>
+                Try Again
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
