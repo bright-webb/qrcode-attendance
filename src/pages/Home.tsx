@@ -106,7 +106,7 @@ export const Home = () => {
           alignItems: 'center', 
           justifyContent: 'center', 
           height: '680px', 
-          width: '100%',
+          width: '90%',
           backgroundColor: 'rgba(255,255,255,0.02)', 
           border: '1px solid rgba(251, 146, 60, 0.2)',
           borderRadius: '24px',
