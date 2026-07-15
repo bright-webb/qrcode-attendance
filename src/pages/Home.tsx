@@ -3,7 +3,7 @@ import QRCode from "react-qr-code";
 import "../App.css";
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3001" : "");
-const REFRESH_INTERVAL = 60; 
+const REFRESH_INTERVAL = 100; 
 
 export const Home = () => {
   const [title, setTitle] = useState("Clock In");
@@ -28,7 +28,7 @@ export const Home = () => {
   useEffect(() => {
     fetchToken();
 
-    // Fetch new token every 60 seconds
+  
     const tokenInterval = setInterval(fetchToken, REFRESH_INTERVAL * 1000);
     
     // Update time, countdown, and current hour every second

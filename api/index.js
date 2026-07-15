@@ -102,7 +102,8 @@ async function handleClock(req, res, isClockOut) {
     return res.status(400).json({ error: "Username is required." });
   }
 
-  // 2. Token Validation (Stateless Serverless-friendly Anti-Link Sharing)
+  // 2. Token Validation (Temporarily Bypassed as requested)
+  /*
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "default_super_secret");
     if (decoded.purpose !== "qr") throw new Error("Invalid token purpose");
@@ -110,6 +111,7 @@ async function handleClock(req, res, isClockOut) {
     console.error("JWT Verification failed:", err.message, "| Token:", token);
     return res.status(403).json({ error: "Invalid or expired QR code. Please scan the screen again." });
   }
+  */
 
   // 3. Geolocation Validation
   if (CAMPUS_LAT !== 0 && CAMPUS_LNG !== 0) {
