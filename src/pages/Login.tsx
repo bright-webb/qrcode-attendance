@@ -37,15 +37,18 @@ export const Login = () => {
   const token = searchParams.get("token");
 
   useEffect(() => {
+    // Frontend token check temporarily bypassed
+    /*
     if (!token) {
       setState("error");
       setMessage("Invalid QR Code. Please scan the QR code on the screen again.");
     }
+    */
   }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim() || !token) return;
+    if (!username.trim()) return;
 
     setState("loading");
     setMessage("");
