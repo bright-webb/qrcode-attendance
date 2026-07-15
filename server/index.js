@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import crypto from "crypto";
+import jwt from "jsonwebtoken";
 import "dotenv/config";
 import { markAttendance, getTodayColumnLabel } from "./sheets.js";
 import { connectMongo, saveLog, checkBuddyPunching } from "./mongo.js";
@@ -46,6 +47,21 @@ setInterval(() => {
   }
 }, 60000);
 
+/**
+ * POST /api/admin/login
+ * Body: { username, password }
+ */
+app.post("/api/admin/login", (req, res) => {
+  const { username, password } = req.body;
+  const { ADMIN_USERNAME, ADMIN_PASSWORD } = process.env;
+
+  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+    const token = jwt.sign({ role: "admin" }, process.env.JWT_SECRET || "default_super_secret", { expiresIn: "8h" });
+    return res.json({ success: true, token });
+  }
+
+  return res.status(401).json({ error: "Invalid admin credentials" });
+});
 
 /**
  * POST /api/clock-in
