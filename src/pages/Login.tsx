@@ -33,7 +33,7 @@ export const Login = () => {
   const actionLabel = isClockOut ? "Clock Out" : "Clock In";
   const endpoint = isClockOut ? "/api/clock-out" : "/api/clock-in";
   
-  // Ensure we have a token
+
   const token = searchParams.get("token");
 
   useEffect(() => {
@@ -91,7 +91,6 @@ export const Login = () => {
           setMessage(`Successfully ${isClockOut ? "clocked out" : "clocked in"}!`);
           setUsername("");
 
-          // Auto-reset to error so they can't use the same screen again (need to scan fresh QR)
           setTimeout(() => {
             setState("error");
             setMessage("Session ended. Please scan the QR code on the screen again.");
@@ -110,13 +109,13 @@ export const Login = () => {
   };
 
   const handleReset = () => {
-    // If they have no token, don't let them reset to the idle form
     if (!token) return;
     setState("idle");
     setMessage("");
     setStudentName("");
     setUsername("");
   };
+
 
   return (
     <div className="Login">

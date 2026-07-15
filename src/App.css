@@ -184,6 +184,11 @@
   }
 }
 
+.App {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
 
 .App h1 {
   font-size: 5rem;
