@@ -1,7 +1,7 @@
 # Credentials - NEVER commit these
 .env
-server/.env
-server/service-account.json
+api/.env
+api/service-account.json
 
 # Logs
 logs

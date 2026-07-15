@@ -5,7 +5,7 @@ import "../App.css";
 type ClockState = "idle" | "loading" | "success" | "error";
 
 const isClockOut = new Date().getHours() >= 12;
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3001" : "");
 
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {

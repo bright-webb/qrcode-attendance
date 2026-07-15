@@ -9,7 +9,6 @@ import { connectMongo, saveLog, checkBuddyPunching } from "./mongo.js";
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Geolocation settings
 const CAMPUS_LAT = parseFloat(process.env.CAMPUS_LAT || "0");
 const CAMPUS_LNG = parseFloat(process.env.CAMPUS_LNG || "0");
 const MAX_DISTANCE_METERS = parseInt(process.env.MAX_DISTANCE_METERS || "50", 10);
@@ -17,35 +16,18 @@ const MAX_DISTANCE_METERS = parseInt(process.env.MAX_DISTANCE_METERS || "50", 10
 app.use(cors());
 app.use(express.json());
 
-// Connect to MongoDB on startup
 connectMongo(process.env.MONGODB_URI).catch((err) => {
   console.error("MongoDB connection failed:", err.message);
 });
 
-// --- QR Token Management ---
-// Store active tokens: { "tokenString": expiresAtTimestamp }
-const activeTokens = new Map();
-
 /**
  * GET /api/qr-token
- * Generates a new short-lived token for the QR code.
+ * Generates a stateless, short-lived JWT for the QR code.
  */
 app.get("/api/qr-token", (_req, res) => {
-  const token = crypto.randomBytes(16).toString("hex");
-  // Token expires in 20 seconds
-  activeTokens.set(token, Date.now() + 20000);
+  const token = jwt.sign({ purpose: "qr" }, process.env.JWT_SECRET || "default_super_secret", { expiresIn: "20s" });
   res.json({ token });
 });
-
-// Cleanup expired tokens every minute to prevent memory leaks
-setInterval(() => {
-  const now = Date.now();
-  for (const [token, expiresAt] of activeTokens.entries()) {
-    if (now > expiresAt) {
-      activeTokens.delete(token);
-    }
-  }
-}, 60000);
 
 /**
  * POST /api/admin/login
@@ -106,17 +88,13 @@ async function handleClock(req, res, isClockOut) {
     return res.status(400).json({ error: "Username is required." });
   }
 
-  // 2. Token Validation (Anti-Link Sharing)
-  if (!token || !activeTokens.has(token)) {
+  // 2. Token Validation (Stateless Serverless-friendly Anti-Link Sharing)
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "default_super_secret");
+    if (decoded.purpose !== "qr") throw new Error("Invalid token purpose");
+  } catch (err) {
     return res.status(403).json({ error: "Invalid or expired QR code. Please scan the screen again." });
   }
-  const expiresAt = activeTokens.get(token);
-  if (Date.now() > expiresAt) {
-    activeTokens.delete(token);
-    return res.status(403).json({ error: "QR code expired. Please scan the screen again." });
-  }
-  // Optional: Invalidate token immediately after single use
-  // activeTokens.delete(token);
 
   // 3. Geolocation Validation
   if (CAMPUS_LAT !== 0 && CAMPUS_LNG !== 0) {
@@ -203,6 +181,11 @@ async function handleClock(req, res, isClockOut) {
   }
 }
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== "production") {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+// Export the Express API so Vercel can run it as Serverless Functions
+export default app;

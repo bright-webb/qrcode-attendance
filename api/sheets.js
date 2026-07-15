@@ -5,19 +5,15 @@ import path from "path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Load service account credentials
-const keyPath = path.join(__dirname, "service-account.json");
-let credentials;
-try {
-  credentials = JSON.parse(readFileSync(keyPath, "utf8"));
-} catch {
-  console.error("service-account.json not found at:", keyPath);
-  process.exit(1);
-}
+// Remove filesystem dependencies since Vercel Serverless does not support reading local keys securely
 
-// Authenticate with Google
+// Authenticate with Google using Vercel Environment Variables
 const auth = new google.auth.GoogleAuth({
-  credentials,
+  credentials: {
+    client_email: process.env.GOOGLE_CLIENT_EMAIL,
+    // Vercel sometimes escapes newlines, so we replace the literal \n string back to true newlines
+    private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+  },
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 
