@@ -65,7 +65,7 @@ export const Home = () => {
       </div>
       
       {/* Progress Bar UI */}
-      <div style={{ marginTop: "30px", width: "100%", maxWidth: "680px", textAlign: "center" }}>
+      <div style={{ marginTop: "30px", width: "100%", maxWidth: "100%", textAlign: "center" }}>
         <p style={{ color: "#94a3b8", marginBottom: "10px", fontSize: "1.1rem" }}>
           QR Code refreshes in {timeLeft} seconds
         </p>
