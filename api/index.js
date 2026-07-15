@@ -25,7 +25,7 @@ connectMongo(process.env.MONGODB_URI).catch((err) => {
  * Generates a stateless, short-lived JWT for the QR code.
  */
 app.get("/api/qr-token", (_req, res) => {
-  const token = jwt.sign({ purpose: "qr" }, process.env.JWT_SECRET || "default_super_secret", { expiresIn: "20s" });
+  const token = jwt.sign({ purpose: "qr" }, process.env.JWT_SECRET || "default_super_secret", { expiresIn: "65s" });
   res.json({ token });
 });
 
