@@ -7,7 +7,6 @@ type ClockState = "idle" | "loading" | "success" | "error";
 const isClockOut = new Date().getHours() >= 12;
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
-// Simple UUID generator for device fingerprinting
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
@@ -102,7 +101,7 @@ export const Login = () => {
           setMessage("Could not reach the server. Please check your connection.");
         }
       },
-      (geoError) => {
+      () => {
         setState("error");
         setMessage("You must allow location access to clock in. Please enable it in your browser settings and try again.");
       },
