@@ -3,7 +3,7 @@ import QRCode from "react-qr-code";
 import "../App.css";
 
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:3001" : "");
-const REFRESH_INTERVAL = 100; 
+const REFRESH_INTERVAL = 60; // seconds — must be less than the backend token expiry (65s)
 
 export const Home = () => {
   const [title, setTitle] = useState("Clock In");
@@ -57,7 +57,8 @@ export const Home = () => {
   }, [currentHour]);
 
   const baseUrl = typeof window !== "undefined" ? `${window.location.origin}/login` : "https://example.com/login";
-  const qrValue = qrToken ? `${baseUrl}?token=${qrToken}` : baseUrl;
+  // Encode the token so special characters in the HMAC signature don't break the URL
+  const qrValue = qrToken ? `${baseUrl}?token=${encodeURIComponent(qrToken)}` : baseUrl;
 
   const progressPercent = (timeLeft / REFRESH_INTERVAL) * 100;
   

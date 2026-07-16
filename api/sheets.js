@@ -1,9 +1,4 @@
 import { google } from "googleapis";
-import { readFileSync } from "fs";
-import { fileURLToPath } from "url";
-import path from "path";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 
 const auth = new google.auth.GoogleAuth({
