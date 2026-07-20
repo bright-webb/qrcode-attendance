@@ -51,61 +51,43 @@ export const Login = () => {
     setMessage("");
     setStudentName("");
 
-    // Geolocation
-    if (!navigator.geolocation) {
-      setState("error");
-      setMessage("Geolocation is not supported by your browser.");
-      return;
-    }
+    // Geolocation removed temporarily due to inaccuracy
+    const deviceId = getDeviceId();
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        const deviceId = getDeviceId();
+    try {
+      const res = await fetch(`${API_URL}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: username.trim(),
+          token,
+          lat: 0,
+          lng: 0,
+          deviceId,
+        }),
+      });
 
-        try {
-          const res = await fetch(`${API_URL}${endpoint}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              username: username.trim(),
-              token,
-              lat: latitude,
-              lng: longitude,
-              deviceId,
-            }),
-          });
+      const data = await res.json();
 
-          const data = await res.json();
-
-          if (!res.ok) {
-            setState("error");
-            setMessage(data.error ?? "Something went wrong. Please try again.");
-            return;
-          }
-
-          const name =
-            [data.firstName, data.lastName].filter(Boolean).join(" ") ||
-            data.username;
-          setStudentName(name);
-          setState("success");
-          setMessage(`Successfully ${isClockOut ? "clocked out" : "clocked in"}!`);
-          setUsername("");
-        } catch {
-          setState("error");
-          setMessage(
-            "Could not reach the server. Please check your internet connection and try again."
-          );
-        }
-      },
-      () => {
+      if (!res.ok) {
         setState("error");
-        setMessage(
-          "Location access was denied. Please enable Location in your browser settings and try again."
-        );
-      },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
-    );
+        setMessage(data.error ?? "Something went wrong. Please try again.");
+        return;
+      }
+
+      const name =
+        [data.firstName, data.lastName].filter(Boolean).join(" ") ||
+        data.username;
+      setStudentName(name);
+      setState("success");
+      setMessage(`Successfully ${isClockOut ? "clocked out" : "clocked in"}!`);
+      setUsername("");
+    } catch {
+      setState("error");
+      setMessage(
+        "Could not reach the server. Please check your internet connection and try again."
+      );
+    }
   };
 
   const handleReset = () => {
@@ -127,7 +109,6 @@ export const Login = () => {
           <p className="login-subtitle">Enter your Gitea username to mark your attendance</p>
         </div>
 
-        {/* Idle / Loading — main form */}
         {(state === "idle" || state === "loading") && token && (
           <form onSubmit={handleSubmit} className="login-form">
             <div className="form-group">

@@ -153,22 +153,22 @@ async function handleClock(req, res, isClockOut) {
     return res.status(403).json({ error: "QR code has expired. Please scan the screen again." });
   }
 
-  // 4. Geolocation Validation
-  const campusLat = parseFloat(process.env.CAMPUS_LAT || "0");
-  const campusLng = parseFloat(process.env.CAMPUS_LNG || "0");
-  const maxDistance = parseInt(process.env.MAX_DISTANCE_METERS || "50", 10);
+  // 4. Geolocation Validation (Temporarily disabled due to inaccuracy issues)
+  // const campusLat = parseFloat(process.env.CAMPUS_LAT || "0");
+  // const campusLng = parseFloat(process.env.CAMPUS_LNG || "0");
+  // const maxDistance = parseInt(process.env.MAX_DISTANCE_METERS || "50", 10);
 
-  if (campusLat !== 0 && campusLng !== 0) {
-    if (!lat || !lng) {
-      return res.status(403).json({ error: "Location access is required to clock in." });
-    }
-    const distance = getDistanceInMeters(lat, lng, campusLat, campusLng);
-    if (distance > maxDistance) {
-      return res.status(403).json({
-        error: `You must be on campus to clock in. You are ${Math.round(distance)}m away (max: ${maxDistance}m).`,
-      });
-    }
-  }
+  // if (campusLat !== 0 && campusLng !== 0) {
+  //   if (!lat || !lng) {
+  //     return res.status(403).json({ error: "Location access is required to clock in." });
+  //   }
+  //   const distance = getDistanceInMeters(lat, lng, campusLat, campusLng);
+  //   if (distance > maxDistance) {
+  //     return res.status(403).json({
+  //       error: `You must be on campus to clock in. You are ${Math.round(distance)}m away (max: ${maxDistance}m).`,
+  //     });
+  //   }
+  // }
 
   // Build date labels
   const today = new Date();
