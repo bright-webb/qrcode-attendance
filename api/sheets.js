@@ -27,7 +27,7 @@ export function getTodayColumnLabel(isClockOut = false) {
 async function getHeaders(spreadsheetId, sheetName) {
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: `${sheetName}!1:1`,
+    range: `'${sheetName}'!1:1`,
   });
   return res.data.values?.[0] ?? [];
 }
@@ -83,8 +83,8 @@ async function appendHeader(spreadsheetId, sheetName, headers, newHeader) {
   const colLetter = columnIndexToLetter(newColIndex);
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${sheetName}!${colLetter}1`,
-    valueInputOption: "RAW",
+    range: `'${sheetName}'!${colLetter}1`,
+    valueInputOption: "USER_ENTERED",
     requestBody: { values: [[newHeader]] },
   });
 
@@ -136,7 +136,7 @@ function columnIndexToLetter(index) {
 async function findStudentRow(spreadsheetId, sheetName, username) {
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: sheetName,
+    range: `'${sheetName}'`,
   });
 
   const rows = res.data.values ?? [];
@@ -190,7 +190,7 @@ export async function markAttendance(spreadsheetId, sheetName, username, isClock
   }
 
   const colLetter = columnIndexToLetter(colIndex);
-  const cellRange = `${sheetName}!${colLetter}${student.rowIndex}`;
+  const cellRange = `'${sheetName}'!${colLetter}${student.rowIndex}`;
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
