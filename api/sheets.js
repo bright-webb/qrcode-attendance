@@ -72,7 +72,7 @@ async function appendHeader(spreadsheetId, sheetName, headers, newHeader) {
               startIndex: newColIndex,
               endIndex: newColIndex + 1,
             },
-            inheritFromBefore: false,
+            inheritFromBefore: true,
           },
         },
       ],
