@@ -88,35 +88,7 @@ async function appendHeader(spreadsheetId, sheetName, headers, newHeader) {
     requestBody: { values: [[newHeader]] },
   });
 
-  await sheets.spreadsheets.batchUpdate({
-    spreadsheetId,
-    requestBody: {
-      requests: [
-        {
-          setDataValidation: {
-            range: {
-              sheetId,
-              startRowIndex: 1,       
-              endRowIndex: 1000,
-              startColumnIndex: newColIndex,
-              endColumnIndex: newColIndex + 1,
-            },
-            rule: {
-              condition: {
-                type: "ONE_OF_LIST",
-                values: [
-                  { userEnteredValue: "Present" },
-                  { userEnteredValue: "Absent" },
-                ],
-              },
-              showCustomUi: true,  
-              strict: false,     
-            },
-          },
-        },
-      ],
-    },
-  });
+
 
   return newColIndex;
 }
